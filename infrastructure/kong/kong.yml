@@ -1,0 +1,277 @@
+# Kong Declarative Configuration for GMC Dashboard
+# API Gateway routing, authentication, and rate limiting
+
+_format_version: "3.0"
+
+services:
+  # GMC Calculation Service
+  - name: gmc-calculation-service
+    url: http://gmc-calculation-service:5000
+    routes:
+      - name: calculation-health
+        paths:
+          - /health
+          - /health/ready
+        methods:
+          - GET
+        strip_path: false
+      - name: calculation-info
+        paths:
+          - /api/v1/info
+        methods:
+          - GET
+        strip_path: false
+      - name: calculation-projects
+        paths:
+          - /api/v1/projects
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+          - name: rate-limiting
+            config:
+              minute: 100
+              hour: 1000
+              policy: local
+      - name: calculation-sessions
+        paths:
+          - /api/v1/projects/*/sessions
+        methods:
+          - GET
+          - POST
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+          - name: rate-limiting
+            config:
+              minute: 50
+              hour: 500
+              policy: local
+      - name: calculation-compute
+        paths:
+          - /api/v1/projects/*/calculate
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+          - name: rate-limiting
+            config:
+              minute: 20  # Lower limit for compute-intensive operations
+              hour: 200
+              policy: local
+
+  # Knowledge Graph Service
+  - name: knowledge-graph-service
+    url: http://knowledge-graph-service:5001
+    routes:
+      - name: knowledge-health
+        paths:
+          - /health
+          - /health/ready
+        methods:
+          - GET
+        strip_path: false
+      - name: knowledge-info
+        paths:
+          - /api/v1/info
+        methods:
+          - GET
+        strip_path: false
+      - name: knowledge-rules
+        paths:
+          - /api/v1/projects/*/rules
+          - /api/v1/projects/*/relationships
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+          - name: rate-limiting
+            config:
+              minute: 50
+              hour: 500
+              policy: local
+      - name: knowledge-strategy
+        paths:
+          - /api/v1/projects/*/strategy
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+          - name: rate-limiting
+            config:
+              minute: 30
+              hour: 300
+              policy: local
+
+  # AI Conversation Service
+  - name: conversation-service
+    url: http://conversation-service:5002
+    routes:
+      - name: ai-health
+        paths:
+          - /health
+          - /health/ready
+        methods:
+          - GET
+        strip_path: false
+      - name: ai-info
+        paths:
+          - /api/v1/info
+        methods:
+          - GET
+        strip_path: false
+      - name: ai-chat
+        paths:
+          - /api/v1/projects/*/chat
+          - /api/v1/projects/*/history
+        methods:
+          - GET
+          - POST
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+          - name: rate-limiting
+            config:
+              minute: 20  # Conservative limit for AI services
+              hour: 200
+              policy: local
+      - name: ai-config
+        paths:
+          - /api/v1/llm-config
+        methods:
+          - PUT
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+          - name: rate-limiting
+            config:
+              minute: 5   # Very conservative for configuration changes
+              hour: 50
+              policy: local
+
+  # User Management Service
+  - name: user-management-service
+    url: http://user-management-service:5003
+    routes:
+      - name: user-health
+        paths:
+          - /health
+          - /health/ready
+        methods:
+          - GET
+        strip_path: false
+      - name: user-info
+        paths:
+          - /api/v1/info
+        methods:
+          - GET
+        strip_path: false
+      - name: user-auth
+        paths:
+          - /api/v1/auth/login
+          - /api/v1/auth/register
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 10  # Conservative for authentication
+              hour: 100
+              policy: local
+      - name: user-profile
+        paths:
+          - /api/v1/auth/profile
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+      - name: user-api-keys
+        paths:
+          - /api/v1/api-keys
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+          - name: rate-limiting
+            config:
+              minute: 20
+              hour: 200
+              policy: local
+
+plugins:
+  # Global CORS plugin
+  - name: cors
+    config:
+      origins:
+        - "http://localhost:3000"  # React frontend
+        - "https://gmc-dashboard.yourdomain.com"  # Production frontend
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - X-Auth-Token
+        - Authorization
+        - X-Project-ID
+      exposed_headers:
+        - X-Auth-Token
+        - X-Project-ID
+        - X-Data-Isolation
+      credentials: true
+      max_age: 3600
+
+  # Global security headers
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - "X-Content-Type-Options: nosniff"
+          - "X-Frame-Options: DENY"
+          - "X-XSS-Protection: 1; mode=block"
+          - "Referrer-Policy: strict-origin-when-cross-origin"
+          - "Content-Security-Policy: default-src 'self'"
+
+# Global rate limiting per IP
+- name: rate-limiting
+  config:
+    minute: 1000
+    hour: 10000
+    policy: local
+    limit_by: ip
+    hide_client_headers: false
