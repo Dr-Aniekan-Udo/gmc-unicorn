@@ -1,0 +1,247 @@
+version: '3.8'
+
+services:
+  # Database Services
+  postgres-calc:
+    image: postgres:15
+    container_name: gmc-postgres-calc
+    environment:
+      POSTGRES_DB: gmc_calculations
+      POSTGRES_USER: gmc_calc_user
+      POSTGRES_PASSWORD: calc_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_calc_data:/var/lib/postgresql/data
+      - ./database/migrations/postgresql:/docker-entrypoint-initdb.d
+    networks:
+      - gmc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gmc_calc_user -d gmc_calculations"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres-user:
+    image: postgres:15
+    container_name: gmc-postgres-user
+    environment:
+      POSTGRES_DB: gmc_users
+      POSTGRES_USER: gmc_user_user
+      POSTGRES_PASSWORD: user_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_user_data:/var/lib/postgresql/data
+    networks:
+      - gmc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gmc_user_user -d gmc_users"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  neo4j:
+    image: neo4j:5.0-community
+    container_name: gmc-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/knowledge_password
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 1G
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    volumes:
+      - neo4j_data:/data
+      - ./database/migrations/neo4j:/var/lib/neo4j/import
+    networks:
+      - gmc-network
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "knowledge_password", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mongodb:
+    image: mongo:7.0
+    container_name: gmc-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: gmc_admin
+      MONGO_INITDB_ROOT_PASSWORD: mongo_password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./database/migrations/mongodb:/docker-entrypoint-initdb.d
+    networks:
+      - gmc-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7.2
+    container_name: gmc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - gmc-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Application Services
+  gmc-calculation-service:
+    build:
+      context: ./services/gmc-calculation-service
+      dockerfile: Dockerfile
+    container_name: gmc-calculation-service
+    environment:
+      - SERVICE_NAME=gmc_calculation_service
+      - DATABASE_URL=postgresql://gmc_calc_user:calc_password@postgres-calc:5432/gmc_calculations
+      - REDIS_URL=redis://redis:6379/0
+      - FLASK_ENV=development
+      - SECRET_KEY=dev-secret-key
+      - JWT_SECRET_KEY=dev-jwt-secret
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres-calc:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/gmc-calculation-service:/app
+    networks:
+      - gmc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  knowledge-graph-service:
+    build:
+      context: ./services/knowledge-graph-service
+      dockerfile: Dockerfile
+    container_name: knowledge-graph-service
+    environment:
+      - SERVICE_NAME=knowledge_graph_service
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=knowledge_password
+      - FLASK_ENV=development
+      - SECRET_KEY=dev-secret-key
+      - JWT_SECRET_KEY=dev-jwt-secret
+    ports:
+      - "5001:5001"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    volumes:
+      - ./services/knowledge-graph-service:/app
+    networks:
+      - gmc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  conversation-service:
+    build:
+      context: ./services/ai-coaching/conversation-service
+      dockerfile: Dockerfile
+    container_name: conversation-service
+    environment:
+      - SERVICE_NAME=conversation_service
+      - MONGODB_URL=mongodb://gmc_admin:mongo_password@mongodb:27017/gmc_coaching
+      - REDIS_URL=redis://redis:6379/1
+      - FLASK_ENV=development
+      - SECRET_KEY=dev-secret-key
+      - JWT_SECRET_KEY=dev-jwt-secret
+    ports:
+      - "5002:5002"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/ai-coaching/conversation-service:/app
+    networks:
+      - gmc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  user-management-service:
+    build:
+      context: ./services/user-management-service
+      dockerfile: Dockerfile
+    container_name: user-management-service
+    environment:
+      - SERVICE_NAME=user_management_service
+      - USER_DATABASE_URL=postgresql://gmc_user_user:user_password@postgres-user:5432/gmc_users
+      - REDIS_URL=redis://redis:6379/2
+      - FLASK_ENV=development
+      - SECRET_KEY=dev-secret-key
+      - JWT_SECRET_KEY=dev-jwt-secret
+    ports:
+      - "5003:5003"
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/user-management-service:/app
+    networks:
+      - gmc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: gmc-frontend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - gmc-network
+    depends_on:
+      - gmc-calculation-service
+      - knowledge-graph-service
+      - conversation-service
+      - user-management-service
+
+volumes:
+  postgres_calc_data:
+  postgres_user_data:
+  neo4j_data:
+  mongodb_data:
+  redis_data:
+
+networks:
+  gmc-network:
+    driver: bridge

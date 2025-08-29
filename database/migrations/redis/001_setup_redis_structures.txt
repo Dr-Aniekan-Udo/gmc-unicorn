@@ -1,0 +1,78 @@
+# GMC Dashboard: Redis Data Structures Setup
+# Project-scoped session management, real-time collaboration, and caching
+
+# Project-scoped namespace pattern: "project:{project_id}:*"
+# This ensures complete data isolation between projects
+
+# 1. Real-time collaboration structures
+# WebSocket connections per project
+# HASH: project:{project_id}:connections
+# Fields: user_id -> socket_id
+
+# 2. Session state management
+# STRING: session:{session_id}:state -> JSON session data
+# HASH: project:{project_id}:active_sessions
+# Fields: session_id -> last_activity_timestamp
+
+# 3. Parameter change events (project-scoped)
+# STREAM: project:{project_id}:parameter_changes
+# Messages: {user_id, parameter_name, old_value, new_value, timestamp}
+
+# 4. Calculation result caching
+# HASH: project:{project_id}:calc_cache
+# Fields: parameter_hash -> calculated_results_json
+# EXPIRE: 3600 seconds (1 hour)
+
+# 5. AI coaching context caching
+# HASH: project:{project_id}:ai_context
+# Fields: user_id -> conversation_context_json
+# EXPIRE: 1800 seconds (30 minutes)
+
+# 6. User presence tracking
+# SET: project:{project_id}:active_users
+# Members: user_id values
+# EXPIRE: 300 seconds (5 minutes) per user
+
+# 7. Notification queues (project-scoped)
+# LIST: project:{project_id}:notifications:{user_id}
+# Items: notification_json messages
+
+# 8. Undo/Redo stacks (project-scoped)
+# LIST: project:{project_id}:undo:{session_id}
+# LIST: project:{project_id}:redo:{session_id}
+# Items: parameter_change_json
+
+# Example Redis commands for setup:
+
+# Create project isolation function
+# FUNCTION GMC_PROJECT_KEY(project_id, key_suffix)
+#   RETURN "project:" .. project_id .. ":" .. key_suffix
+# END
+
+# Performance optimization: Connection pooling
+# SET connection_pool:max_size 100
+# SET connection_pool:timeout 30
+
+# Rate limiting for API calls
+# HASH: rate_limit:{user_id}
+# Fields: endpoint_name -> request_count
+# EXPIRE: 60 seconds per rate limit window
+
+# Session management
+# HASH: user_sessions
+# Fields: session_token -> user_session_json
+
+# Project access permissions cache
+# HASH: project_permissions:{user_id}
+# Fields: project_id -> permission_level
+# EXPIRE: 900 seconds (15 minutes)
+
+# Example data structures after initialization:
+# Keys will be created dynamically during application runtime
+# This file serves as documentation for the Redis schema design
+
+print("Redis data structures documented")
+print("Project-scoped isolation pattern: project:{project_id}:*")
+print("All Redis operations must include project_id for data isolation")
+print("Connection pooling configured for performance")
+print("Rate limiting and session management structures defined")
