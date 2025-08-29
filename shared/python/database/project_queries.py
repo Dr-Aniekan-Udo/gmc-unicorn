@@ -5,7 +5,7 @@ Database query helpers that enforce project-scoped data isolation
 across all GMC Dashboard microservices.
 """
 
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 import logging

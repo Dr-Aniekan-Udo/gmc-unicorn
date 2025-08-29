@@ -11,9 +11,7 @@ from flask_jwt_extended import JWTManager
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Any, Optional
 from neo4j import GraphDatabase
-import json
 
 # Initialize Flask app
 app = Flask(__name__)

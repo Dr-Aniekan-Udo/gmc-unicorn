@@ -11,7 +11,6 @@ from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Any, Optional
 
 # Initialize Flask app
 app = Flask(__name__)

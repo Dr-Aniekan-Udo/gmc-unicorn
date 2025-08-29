@@ -173,7 +173,10 @@ def require_project_context(permission: Optional[str] = None):
                         jsonify(
                             {
                                 "error": "Project access denied",
-                                "message": f"User {user_id} does not have access to project {project_id}",
+                                "message": (
+                                    f"User {user_id} does not have access to project "
+                                    f"{project_id}"
+                                ),
                             }
                         ),
                         403,
