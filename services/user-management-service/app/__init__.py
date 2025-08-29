@@ -9,10 +9,10 @@ from typing import Dict, Any
 
 SERVICE_CONFIG: Dict[str, Any] = {
     "name": "user-management-service",
-    "version": "0.1.0", 
+    "version": "0.1.0",
     "port": 5003,
     "database": "postgresql",
-    "description": "Authentication and API key management"
+    "description": "Authentication and API key management",
 }
 
 __all__ = ["SERVICE_CONFIG"]

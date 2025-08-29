@@ -11,8 +11,8 @@ SERVICE_CONFIG: Dict[str, Any] = {
     "name": "conversation-service",
     "version": "0.1.0",
     "port": 5002,
-    "database": "mongodb", 
-    "description": "Conversational AI with project-scoped memory"
+    "database": "mongodb",
+    "description": "Conversational AI with project-scoped memory",
 }
 
 __all__ = ["SERVICE_CONFIG"]

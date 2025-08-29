@@ -11,14 +11,14 @@ from .project_context import (
     require_project_context,
     project_scoped_query,
     ProjectIsolationMiddleware,
-    project_manager
+    project_manager,
 )
 
 __all__ = [
     "ProjectContext",
-    "ProjectContextManager", 
+    "ProjectContextManager",
     "require_project_context",
     "project_scoped_query",
     "ProjectIsolationMiddleware",
-    "project_manager"
+    "project_manager",
 ]

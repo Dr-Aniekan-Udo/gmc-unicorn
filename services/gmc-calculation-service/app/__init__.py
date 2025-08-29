@@ -12,7 +12,7 @@ SERVICE_CONFIG: Dict[str, Any] = {
     "version": "0.1.0",
     "port": 5000,
     "database": "postgresql",
-    "description": "Core GMC mathematical calculation engine"
+    "description": "Core GMC mathematical calculation engine",
 }
 
 __all__ = ["SERVICE_CONFIG"]
