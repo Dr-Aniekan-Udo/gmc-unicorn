@@ -42,6 +42,7 @@ services:
   neo4j:
     image: neo4j:5.14-community
     container_name: gmc-neo4j
+    user: "1000:1000"  # Run as host user to avoid permission issues
     environment:
       NEO4J_AUTH: neo4j/knowledge_password
       NEO4J_dbms_memory_heap_initial__size: 512m

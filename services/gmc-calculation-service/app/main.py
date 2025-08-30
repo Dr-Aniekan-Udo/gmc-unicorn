@@ -9,6 +9,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from sqlalchemy import text
 from flask_jwt_extended import JWTManager
 import logging
 import os
@@ -49,7 +50,7 @@ def health_check():
     """Health check endpoint for Kubernetes liveness probe."""
     try:
         # Test database connection
-        db.session.execute("SELECT 1")
+        db.session.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
@@ -72,7 +73,7 @@ def readiness_check():
     """Readiness check endpoint for Kubernetes readiness probe."""
     try:
         # Test database connection and basic functionality
-        db.session.execute("SELECT 1")
+        db.session.execute(text("SELECT 1"))
         ready = True
         message = "Service ready"
     except Exception as e:

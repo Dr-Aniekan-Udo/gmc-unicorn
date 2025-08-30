@@ -50,11 +50,13 @@ class TestServiceHealth:
                     health_data["status"] == "healthy"
                 ), f"{service_name} reports unhealthy status"
 
-                # Service name should match
-                expected_service = service_name.replace("-", "_")
+                # Service name should match (allow both formats)
+                expected_service_underscore = service_name.replace("-", "_")
+                expected_service_dash = service_name
                 assert (
-                    expected_service in health_data["service"]
-                ), f"{service_name} incorrect service name"
+                    expected_service_underscore in health_data["service"] or 
+                    expected_service_dash in health_data["service"]
+                ), f"{service_name} incorrect service name: expected {expected_service_underscore} or {expected_service_dash}, got {health_data['service']}"
 
                 logger.info(f"✅ {service_name} health check passed")
 

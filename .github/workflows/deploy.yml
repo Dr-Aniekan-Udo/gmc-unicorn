@@ -1,0 +1,100 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '20'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ secrets.REGISTRY_URL }}
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.REGISTRY_URL }}/gmc-dashboard
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+    
+    - name: Build and push backend services
+      run: |
+        # Build and push each service
+        services=("gmc-calculation-service" "knowledge-graph-service" "user-management-service" "conversation-service")
+        for service in "${services[@]}"; do
+          docker build -t ${{ secrets.REGISTRY_URL }}/gmc-dashboard/${service}:${{ github.sha }} ./services/${service}
+          docker push ${{ secrets.REGISTRY_URL }}/gmc-dashboard/${service}:${{ github.sha }}
+        done
+    
+    - name: Build and push frontend
+      run: |
+        cd frontend
+        docker build -f Dockerfile.dev -t ${{ secrets.REGISTRY_URL }}/gmc-dashboard/frontend:${{ github.sha }} .
+        docker push ${{ secrets.REGISTRY_URL }}/gmc-dashboard/frontend:${{ github.sha }}
+    
+    - name: Deploy to Kubernetes
+      run: |
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Configure kubectl
+        echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+        
+        # Update deployment images
+        kubectl set image deployment/gmc-calculation-service gmc-calculation-service=${{ secrets.REGISTRY_URL }}/gmc-dashboard/gmc-calculation-service:${{ github.sha }}
+        kubectl set image deployment/knowledge-graph-service knowledge-graph-service=${{ secrets.REGISTRY_URL }}/gmc-dashboard/knowledge-graph-service:${{ github.sha }}
+        kubectl set image deployment/user-management-service user-management-service=${{ secrets.REGISTRY_URL }}/gmc-dashboard/user-management-service:${{ github.sha }}
+        kubectl set image deployment/conversation-service conversation-service=${{ secrets.REGISTRY_URL }}/gmc-dashboard/conversation-service:${{ github.sha }}
+        kubectl set image deployment/frontend frontend=${{ secrets.REGISTRY_URL }}/gmc-dashboard/frontend:${{ github.sha }}
+        
+        # Wait for rollout
+        kubectl rollout status deployment/gmc-calculation-service
+        kubectl rollout status deployment/knowledge-graph-service
+        kubectl rollout status deployment/user-management-service
+        kubectl rollout status deployment/conversation-service
+        kubectl rollout status deployment/frontend
+    
+    - name: Run smoke tests
+      run: |
+        # Wait for services to be ready
+        sleep 60
+        
+        # Test health endpoints
+        curl -f ${{ secrets.PROD_BASE_URL }}/api/v1/calculation/health
+        curl -f ${{ secrets.PROD_BASE_URL }}/api/v1/knowledge/health
+        curl -f ${{ secrets.PROD_BASE_URL }}/api/v1/users/health
+        curl -f ${{ secrets.PROD_BASE_URL }}/api/v1/coaching/health
+        curl -f ${{ secrets.PROD_BASE_URL }}/
+    
+    - name: Notify deployment
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deployment successful"
+        else
+          echo "❌ Deployment failed"
+        fi

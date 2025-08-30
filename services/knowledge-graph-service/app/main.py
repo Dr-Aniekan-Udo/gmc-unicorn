@@ -79,8 +79,6 @@ class Neo4jConnection:
 # Initialize Neo4j connection
 neo4j_conn = Neo4jConnection()
 
-
-@app.before_first_request
 def initialize_database():
     """Initialize Neo4j connection on startup."""
     connected = neo4j_conn.connect()
@@ -88,6 +86,10 @@ def initialize_database():
         logger.info("Neo4j connection established")
     else:
         logger.error("Failed to establish Neo4j connection")
+
+# Initialize the database connection when the app starts
+with app.app_context():
+    initialize_database()
 
 
 @app.teardown_appcontext
